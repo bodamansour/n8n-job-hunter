@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>n8n Job Hunter</title>
+<meta name="description" content="An n8n workflow that searches for entry-level tech jobs every morning, scores each one against your CV with Google Gemini, and sends you a daily summary on WhatsApp.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="n8n Job Hunter">
+<meta property="og:description" content="An n8n workflow that searches for entry-level tech jobs every morning, scores each one against your CV with Google Gemini, and sends you a daily summary on WhatsApp.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='13' y='0' width='6' height='32' fill='%2300875a'/%3E%3Ccircle cx='16' cy='16' r='9' fill='white' stroke='%231c2326' stroke-width='5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #ffffff;
+    --panel: #eef3f0;
+    --ink: #1c2326;
+    --muted: #55636a;
+    --rule: #d5dedb;
+    --line: #00875a;
+    --spur: #98a4aa;
+    --link: #006b47;
+    --hot: #d52b1e;
+    --warm: #e39b00;
+    --cold: #1f78c1;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #121719;
+      --panel: #1a2225;
+      --ink: #e6ecee;
+      --muted: #a2b0b6;
+      --rule: #2c383c;
+      --line: #2fbf85;
+      --spur: #64737a;
+      --link: #6fd9ad;
+      --hot: #ff6b5e;
+      --warm: #ffbf3c;
+      --cold: #5aa9ea;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 1.0625rem/1.6 'Overpass', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  .wrap { width: min(100% - 32px, 800px); margin-inline: auto; }
+  a { color: var(--link); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  a:hover { text-decoration-thickness: 2px; }
+  :focus-visible { outline: 3px solid var(--line); outline-offset: 3px; border-radius: 4px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
+  /* Top bar */
+  .bar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px 20px; padding: 20px 0; border-bottom: 1px solid var(--rule);
+  }
+  .repo { color: var(--muted); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+  .repo strong { color: var(--ink); font-weight: 800; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
+    border: 2px solid var(--ink); border-radius: 6px;
+    color: var(--ink); font-weight: 600; font-size: 0.95rem; text-decoration: none;
+  }
+  .btn:hover { background: var(--panel); }
+  .btn.primary { background: var(--ink); color: var(--paper); }
+  .btn.primary:hover { opacity: 0.88; }
+
+  /* Hero */
+  .hero { padding: 56px 0 0; }
+  h1 {
+    margin: 0 0 18px; max-width: 18ch;
+    font-size: clamp(2.25rem, 1.3rem + 4.2vw, 3.75rem); font-weight: 800;
+    line-height: 1.04; letter-spacing: -0.02em; text-wrap: balance;
+  }
+  .summary { margin: 0; max-width: 60ch; color: var(--muted); font-size: 1.2rem; line-height: 1.55; }
+
+  /* Workflow drawn as a transit line */
+  .map { margin-top: 48px; padding: 28px 24px 12px; border-radius: 14px; background: var(--panel); }
+  .map h2 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
+  .map-note { margin: 0 0 20px; color: var(--muted); font-size: 0.95rem; }
+  .map-note:empty { display: none; }
+  .line, .branches { list-style: none; margin: 0; padding: 0; }
+  .line { margin-top: 16px; }
+  .stop, .split { display: grid; grid-template-columns: 44px 1fr; column-gap: 14px; }
+  .rail { position: relative; }
+  .stop .rail::before {
+    /* 1px overlap on each end so rows with fractional heights never leave a seam */
+    content: ""; position: absolute; top: -1px; bottom: -1px; left: 50%;
+    width: 8px; margin-left: -4px; background: var(--line); transform-origin: top;
+  }
+  .stop.first .rail::before { top: 24px; }
+  .stop.last .rail::before { bottom: auto; height: 24px; }
+  .stop.first.last .rail::before { display: none; }
+  .dot {
+    position: absolute; top: 24px; left: 50%; z-index: 1;
+    width: 22px; height: 22px; margin: -11px 0 0 -11px;
+    border: 5px solid var(--ink); border-radius: 50%; background: var(--paper);
+  }
+  .first .dot, .last .dot { width: 34px; height: 18px; margin: -9px 0 0 -17px; border-radius: 9px; }
+  .info { min-width: 0; padding: 12px 0 24px; overflow-wrap: anywhere; }
+  .time { margin: 0 0 2px; color: var(--link); font-size: 0.9rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .name { margin: 0; font-size: 1.12rem; font-weight: 800; line-height: 1.3; }
+  .desc { margin: 2px 0 0; color: var(--muted); }
+  .fields { margin-top: 2px; color: var(--muted); }
+  .fields summary { width: fit-content; cursor: pointer; }
+  .fields p { margin: 6px 0 0; font-size: 0.92rem; overflow-wrap: anywhere; }
+  .spur { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 10px 0 0; font-size: 0.95rem; }
+  .spur-when { color: var(--muted); }
+  .spur-track { position: relative; width: 40px; height: 6px; border-radius: 3px; background: var(--spur); }
+  .spur-track::after {
+    content: ""; position: absolute; top: -6px; right: -1px;
+    width: 6px; height: 18px; border-radius: 3px; background: var(--spur);
+  }
+  .spur-end { font-weight: 600; }
+  .split .rail { display: flex; justify-content: center; gap: 4px; }
+  .track { width: 5px; background: var(--c); }
+  .branches { display: grid; gap: 6px; padding: 6px 0 18px; }
+  .branches li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .swatch { align-self: center; width: 12px; height: 12px; border-radius: 3px; background: var(--c); }
+  .cond { color: var(--muted); }
+  .side {
+    margin: 4px 0 20px; padding: 12px 16px;
+    border: 2px dashed var(--spur); border-radius: 10px; color: var(--muted);
+  }
+  .side strong { color: var(--ink); }
+
+  /* README */
+  .readme { max-width: 70ch; padding: 40px 0 24px; }
+  .readme h2 { margin: 2.2em 0 0.6em; font-size: 1.6rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.01em; }
+  .readme h3 { margin: 1.8em 0 0.5em; font-size: 1.2rem; font-weight: 800; }
+  .readme > :first-child { margin-top: 0; }
+  .readme p, .readme li, .readme blockquote, .side { overflow-wrap: anywhere; }
+  .readme hr { margin: 2.5em 0; border: 0; border-top: 1px solid var(--rule); }
+  .readme code {
+    padding: 0.1em 0.35em; border-radius: 4px; background: var(--panel);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em;
+  }
+  .readme pre { overflow-x: auto; padding: 16px; border-radius: 10px; background: var(--panel); }
+  .readme pre code { padding: 0; background: none; }
+  .readme blockquote { margin: 1.2em 0; padding: 2px 16px; border-inline-start: 4px solid var(--line); color: var(--muted); }
+  .table-wrap { overflow-x: auto; margin: 1.2em 0; }
+  .readme table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  .readme th, .readme td { padding: 10px 12px; border-bottom: 1px solid var(--rule); text-align: start; vertical-align: top; }
+  .readme th { font-weight: 800; }
+  .status { color: var(--muted); }
+
+  footer { padding: 24px 0 48px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.95rem; }
+  footer p { margin: 0; }
+
+  @media (max-width: 520px) {
+    .hero { padding-top: 36px; }
+    .map { margin-inline: -8px; padding: 22px 14px 8px; }
+    .stop, .split { grid-template-columns: 36px 1fr; column-gap: 10px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .stop .rail::before { animation: draw 0.45s ease-out both; animation-delay: calc(var(--i, 0) * 70ms); }
+    @keyframes draw { from { transform: scaleY(0); } }
+  }
+</style>
+</head>
+<body>
+<header class="wrap bar">
+  <a class="repo" href="https://github.com/bodamansour/n8n-job-hunter">bodamansour / <strong>n8n-job-hunter</strong></a>
+  <nav class="actions" aria-label="Project links">
+    <a class="btn primary" href="https://github.com/bodamansour/n8n-job-hunter">View source on GitHub</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <h1 id="title">n8n Job Hunter</h1>
+    <p id="summary" class="summary">An n8n workflow that searches for entry-level tech jobs every morning, scores each one against your CV with Google Gemini, and sends you a daily summary on WhatsApp.</p>
+  </section>
+
+  <section id="map" class="map" aria-labelledby="map-title" hidden>
+    <h2 id="map-title">What it does each morning</h2>
+    <p id="map-note" class="map-note"></p>
+    <ol id="line" class="line"></ol>
+    <div id="notes"></div>
+  </section>
+
+  <article id="readme" class="readme">
+    <p class="status">Loading the project description…</p>
+  </article>
+  <noscript><p>The workflow map needs JavaScript. <a href="https://github.com/bodamansour/n8n-job-hunter#readme">Read the project on GitHub</a>.</p></noscript>
+</main>
+
+<footer class="wrap">
+  <p>Built with n8n. Source code, setup steps and license are on <a href="https://github.com/bodamansour/n8n-job-hunter">GitHub</a>.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js" integrity="sha384-IvVdUXkhyoD0shbjhiiOnuiTbervTaB0VJcnEcg3shUAMVOOF6lKj4ozJrCwvz6s" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous"></script>
+<script>
+'use strict';
+// Everything on this page is read from the repository's own files at load time,
+// so editing README.md or the workflow JSON updates the page with no rebuild.
+const CONFIG = {"repo": "bodamansour/n8n-job-hunter", "branch": "main", "readme": "README.md", "workflow": null, "mapFromTable": true};
+const GH = 'https://github.com/' + CONFIG.repo;
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+};
+const hasLibs = () => typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined';
+const inline = (md) => DOMPurify.sanitize(marked.parseInline(md));
+const plain = (md) => { const d = el('div'); d.innerHTML = inline(md); return d.textContent.trim(); };
+
+/* ---------- Stations ---------- */
+function stopItem(o) {
+  const li = el('li', 'stop' + (o.first ? ' first' : '') + (o.last ? ' last' : ''));
+  li.style.setProperty('--i', o.index);
+  const rail = el('span', 'rail');
+  rail.setAttribute('aria-hidden', 'true');
+  rail.append(el('span', 'dot'));
+  const info = el('div', 'info');
+  if (o.time) info.append(el('p', 'time', o.time));
+  info.append(el('h3', 'name', o.name));
+  if (o.descHTML) {
+    const p = el('p', 'desc');
+    p.innerHTML = o.descHTML; // already sanitized
+    info.append(p);
+  } else if (o.fields && o.fields.length) {
+    const d = el('details', 'fields');
+    d.append(el('summary', null, o.desc), el('p', null, o.fields.join(', ')));
+    info.append(d);
+  } else if (o.desc) {
+    info.append(el('p', 'desc', o.desc));
+  }
+  for (const s of o.spurs || []) {
+    const p = el('p', 'spur');
+    const track = el('span', 'spur-track');
+    track.setAttribute('aria-hidden', 'true');
+    p.append(el('span', 'spur-when', s.when ? 'if ' + s.when : 'also'), track,
+      el('span', 'sr-only', ' goes to '), el('span', 'spur-end', s.to));
+    info.append(p);
+  }
+  li.append(rail, info);
+  return li;
+}
+
+const TRACK_COLORS = { hot: 'var(--hot)', warm: 'var(--warm)', cold: 'var(--cold)' };
+const FALLBACK_COLORS = ['var(--hot)', 'var(--warm)', 'var(--cold)', 'var(--line)'];
+
+function splitItem(branches) {
+  const li = el('li', 'split');
+  const rail = el('span', 'rail');
+  rail.setAttribute('aria-hidden', 'true');
+  const list = el('ul', 'branches');
+  branches.forEach((b, j) => {
+    const color = TRACK_COLORS[String(b.label).toLowerCase()] || FALLBACK_COLORS[j % FALLBACK_COLORS.length];
+    const track = el('span', 'track');
+    track.style.setProperty('--c', color);
+    rail.append(track);
+    const item = el('li');
+    const swatch = el('span', 'swatch');
+    swatch.style.setProperty('--c', color);
+    swatch.setAttribute('aria-hidden', 'true');
+    item.append(swatch, el('strong', null, b.label));
+    if (b.cond) item.append(el('span', 'cond', b.cond));
+    list.append(item);
+  });
+  li.append(rail, list);
+  return li;
+}
+
+/* ---------- n8n workflow → line ---------- */
+const OPS = {
+  equals: '=', notEquals: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤',
+  contains: 'contains', notContains: 'does not contain', startsWith: 'starts with', endsWith: 'ends with',
+  notEmpty: 'is set', empty: 'is empty', exists: 'exists', notExists: 'does not exist', true: 'is true', false: 'is false',
+};
+function field(expr) {
+  const s = String(expr == null ? '' : expr);
+  const m = s.match(/\$json(?:\.([\w$]+)|\[['"]([^'"]+)['"]\])/);
+  return m ? (m[1] || m[2]) : s.replace(/^=/, '');
+}
+function condText(c) {
+  const op = c.operator || {};
+  const rhs = op.singleValue ? '' : ' ' + String(c.rightValue == null ? '' : c.rightValue).replace(/^=/, '');
+  return (field(c.leftValue) + ' ' + (OPS[op.operation] || op.operation || '') + rhs).trim();
+}
+function condsText(block) {
+  const list = (block && block.conditions) || [];
+  return list.map(condText).join(block && block.combinator === 'or' ? ' or ' : ' and ');
+}
+const kindOf = (node) => node.type.split('.').pop();
+function outputLabels(node, count) {
+  const p = node.parameters || {};
+  if (kindOf(node) === 'if') return ['yes', 'no'];
+  if (kindOf(node) === 'switch') {
+    const rules = (p.rules && p.rules.values) || [];
+    const labels = rules.map((r, i) => (r.renameOutput && r.outputKey) || 'rule ' + (i + 1));
+    const opts = p.options || {};
+    if (opts.fallbackOutput === 'extra') labels.push(opts.renameFallbackOutput || 'otherwise');
+    return labels;
+  }
+  return Array.from({ length: count }, (_, i) => (count > 1 ? 'output ' + (i + 1) : ''));
+}
+function outputConditions(node) {
+  const p = node.parameters || {};
+  if (kindOf(node) !== 'switch') return [];
+  const texts = ((p.rules && p.rules.values) || []).map((r) => condsText(r.conditions));
+  if ((p.options || {}).fallbackOutput === 'extra') texts.push('everything else');
+  return texts;
+}
+const setFields = (node) => kindOf(node) === 'set'
+  ? (((node.parameters || {}).assignments || {}).assignments || []).map((a) => a.name).filter(Boolean)
+  : [];
+function describe(node) {
+  const p = node.parameters || {};
+  switch (kindOf(node)) {
+    case 'webhook': return 'Starts when a ' + (p.httpMethod || 'GET') + ' request arrives';
+    case 'set': { const n = setFields(node).length; return n ? 'Sets ' + n + ' field' + (n === 1 ? '' : 's') : 'Sets fields'; }
+    case 'if': return 'Checks whether ' + condsText(p.conditions);
+    case 'switch': {
+      const first = ((p.rules && p.rules.values) || [])[0];
+      const c = first && first.conditions && first.conditions.conditions && first.conditions.conditions[0];
+      return c ? 'Routes each item by ' + field(c.leftValue) : 'Routes each item to a branch';
+    }
+    case 'googleSheets':
+      return ({ append: 'Adds a row to', update: 'Updates a row in', appendOrUpdate: 'Adds or updates a row in',
+        delete: 'Deletes rows in', clear: 'Clears' }[p.operation] || 'Looks up rows in') + ' Google Sheets';
+    case 'httpRequest': return 'Sends an HTTP ' + (p.method || 'GET') + ' request';
+    case 'gmail': return 'Sends an email with Gmail';
+    case 'respondToWebhook': return 'Replies to the request';
+    default: return kindOf(node).replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+  }
+}
+function mainPath(w) {
+  const names = new Set(w.nodes.filter((n) => !/stickyNote$/.test(n.type)).map((n) => n.name));
+  const C = w.connections || {};
+  const targets = (name) => [...new Set(((C[name] && C[name].main) || []).flat().filter(Boolean).map((c) => c.node))]
+    .filter((n) => names.has(n));
+  const incoming = new Set(Object.values(C).flatMap((c) => (c.main || []).flat().filter(Boolean).map((x) => x.node)));
+  const memo = new Map();
+  const longest = (n, stack) => {
+    if (memo.has(n)) return memo.get(n);
+    if (stack.has(n)) return [];
+    stack.add(n);
+    let best = [];
+    for (const t of targets(n)) { const p = longest(t, stack); if (p.length > best.length) best = p; }
+    stack.delete(n);
+    const r = [n, ...best];
+    memo.set(n, r);
+    return r;
+  };
+  return [...names].filter((n) => !incoming.has(n)).map((r) => longest(r, new Set()))
+    .sort((a, b) => b.length - a.length)[0] || [];
+}
+function renderWorkflow(w) {
+  const byName = new Map(w.nodes.map((n) => [n.name, n]));
+  const C = w.connections || {};
+  const path = mainPath(w);
+  if (path.length < 2) return false;
+  const line = $('#line');
+  path.forEach((name, i) => {
+    const node = byName.get(name);
+    const next = path[i + 1];
+    const outs = ((C[name] && C[name].main) || []).map((arr) => (arr || []).map((c) => c.node));
+    const labels = outputLabels(node, outs.length);
+    const spurs = [];
+    const tracks = [];
+    outs.forEach((targets, k) => targets.forEach((t) => {
+      if (t === next) tracks.push(k); else spurs.push({ when: labels[k], to: t });
+    }));
+    line.append(stopItem({
+      name, desc: describe(node), fields: setFields(node), spurs,
+      first: i === 0, last: i === path.length - 1, index: i,
+    }));
+    if (tracks.length > 1) {
+      const conds = outputConditions(node);
+      line.append(splitItem(tracks.map((k) => ({ label: labels[k], cond: conds[k] || '' }))));
+    }
+  });
+  return true;
+}
+
+/* ---------- README table (Time | Stage | Details) → line ---------- */
+function renderTable(tok) {
+  const H = tok.header.map((h) => plain(h.text));
+  const ti = H.findIndex((h) => /time/i.test(h));
+  const si = H.findIndex((h) => /stage|step/i.test(h));
+  const di = H.findIndex((h) => /detail|description/i.test(h));
+  if (si < 0) return false;
+  const zone = ti > -1 && (H[ti].match(/\(([^)]+)\)/) || [])[1];
+  if (zone) $('#map-note').textContent = 'Times are in ' + zone + ' time.';
+  const onLine = [];
+  let lastTime = '';
+  for (const r of tok.rows) {
+    const time = ti > -1 ? plain(r[ti].text) : '';
+    const row = { name: plain(r[si].text), descHTML: di > -1 ? inline(r[di].text) : '' };
+    if (time && !/\d{1,2}:\d{2}/.test(time)) {
+      // Rows like "anytime" run outside the daily schedule, so they sit beside the line.
+      const p = el('p', 'side');
+      const lead = el('strong', null, time.charAt(0).toUpperCase() + time.slice(1) + ': ' + row.name + '.');
+      const rest = el('span');
+      rest.innerHTML = ' ' + row.descHTML;
+      p.append(lead, rest);
+      $('#notes').append(p);
+      continue;
+    }
+    onLine.push({ ...row, time: time && time !== lastTime ? time : '' });
+    if (time) lastTime = time;
+  }
+  onLine.forEach((r, i) => $('#line').append(stopItem({ ...r, first: i === 0, last: i === onLine.length - 1, index: i })));
+  return onLine.length > 1;
+}
+
+/* ---------- README ---------- */
+function takeHero(tokens) {
+  const h = tokens.findIndex((t) => t.type === 'heading' && t.depth === 1);
+  if (h > -1) {
+    $('#title').textContent = plain(tokens[h].text);
+    document.title = $('#title').textContent;
+    tokens.splice(h, 1);
+  }
+  const p = tokens.findIndex((t) => t.type === 'paragraph');
+  if (p > -1) {
+    $('#summary').innerHTML = inline(tokens[p].text);
+    tokens.splice(p, 1);
+  }
+}
+function dropSection(tokens, pattern) {
+  const start = tokens.findIndex((t) => t.type === 'heading' && t.depth <= 2 && pattern.test(t.text));
+  if (start < 0) return;
+  let end = start + 1;
+  while (end < tokens.length && !(tokens[end].type === 'heading' && tokens[end].depth <= 2)) end++;
+  tokens.splice(start, end - start);
+}
+function dropTokenAndHeading(tokens, index) {
+  let start = index;
+  let k = index - 1;
+  while (k >= 0 && tokens[k].type === 'space') k--;
+  if (k >= 0 && tokens[k].type === 'heading') start = k;
+  tokens.splice(start, index - start + 1);
+}
+// Lists and quotes can't use dir="auto": auto-detection skips children that carry their
+// own dir, so set their direction from the first strong character instead.
+function textDir(text) {
+  for (const ch of text) {
+    if (/[֐-ࣿיִ-﷿ﹰ-﻿]/.test(ch)) return 'rtl';
+    if (/[A-Za-zÀ-ɏ]/.test(ch)) return 'ltr';
+  }
+  return 'ltr';
+}
+function polish(root) {
+  root.querySelectorAll('p, li, h2, h3, h4, th, td').forEach((n) => n.setAttribute('dir', 'auto'));
+  root.querySelectorAll('ul, ol, blockquote').forEach((n) => n.setAttribute('dir', textDir(n.textContent)));
+  const relative = (u) => !/^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(u);
+  root.querySelectorAll('a[href]').forEach((a) => {
+    const h = a.getAttribute('href');
+    if (relative(h)) a.href = GH + '/blob/' + CONFIG.branch + '/' + h.replace(/^\.?\//, '');
+  });
+  root.querySelectorAll('img[src]').forEach((img) => {
+    const s = img.getAttribute('src');
+    if (relative(s)) img.src = 'https://raw.githubusercontent.com/' + CONFIG.repo + '/' + CONFIG.branch + '/' + s.replace(/^\.?\//, '');
+  });
+  root.querySelectorAll('table').forEach((t) => {
+    const wrap = el('div', 'table-wrap');
+    t.replaceWith(wrap);
+    wrap.append(t);
+  });
+}
+function readmeError() {
+  const box = $('#readme');
+  box.textContent = '';
+  const p = el('p', 'status', 'The project description did not load. ');
+  const a = el('a', null, 'Read it on GitHub');
+  a.href = GH + '#readme';
+  p.append(a, document.createTextNode('.'));
+  box.append(p);
+}
+
+async function main() {
+  let md = null;
+  try {
+    const r = await fetch(CONFIG.readme, { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    md = await r.text();
+  } catch (e) {
+    readmeError();
+  }
+  const libs = hasLibs();
+  const tokens = md && libs ? marked.lexer(md) : null;
+  if (tokens) takeHero(tokens);
+
+  let mapped = false;
+  if (CONFIG.workflow) {
+    try {
+      const r = await fetch(encodeURI(CONFIG.workflow), { cache: 'no-cache' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      mapped = renderWorkflow(await r.json());
+      if (mapped && tokens) dropSection(tokens, /^workflow$/i); // the map replaces the README's text diagram
+    } catch (e) {
+      mapped = false;
+    }
+  } else if (tokens && CONFIG.mapFromTable) {
+    const i = tokens.findIndex((t) => t.type === 'table' && t.header.some((h) => /stage|step/i.test(h.text)));
+    if (i > -1 && renderTable(tokens[i])) {
+      mapped = true;
+      dropTokenAndHeading(tokens, i);
+    }
+  }
+  if (mapped) $('#map').hidden = false;
+
+  if (tokens) {
+    const box = $('#readme');
+    box.innerHTML = DOMPurify.sanitize(marked.parser(tokens));
+    polish(box);
+  } else if (md) {
+    const box = $('#readme');
+    box.textContent = '';
+    box.append(el('pre', null, md));
+  }
+}
+main();
+</script>
+</body>
+</html>
