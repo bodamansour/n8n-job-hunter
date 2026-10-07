@@ -485,12 +485,23 @@ function readmeError() {
   box.append(p);
 }
 
+async function fetchFirst(urls) {
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { cache: 'no-cache' });
+      if (r.ok) return await r.text();
+    } catch (e) { /* try the next source */ }
+  }
+  throw new Error('not available');
+}
+
 async function main() {
   let md = null;
   try {
-    const r = await fetch(CONFIG.readme, { cache: 'no-cache' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    md = await r.text();
+    // Vercel does not serve a root README.md, so read it from GitHub first;
+    // the local copy covers hosts that do serve it.
+    const raw = 'https://raw.githubusercontent.com/' + CONFIG.repo + '/' + CONFIG.branch + '/' + CONFIG.readme;
+    md = await fetchFirst([raw, CONFIG.readme]);
   } catch (e) {
     readmeError();
   }
