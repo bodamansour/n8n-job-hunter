@@ -12,10 +12,10 @@ An n8n workflow that searches for entry-level tech jobs every morning, scores ea
 | | **Filter** | Keeps titles that match your keywords and drops senior roles. Accepts only your locations or remote roles open to your region, and only jobs posted within the last 30 days. |
 | | **Deduplicate** | Stores every job in an n8n Data Table so it is never processed twice. |
 | | **Score** | Gemini rates each fresh job 0–100 using **only your CV text**, plus a one-line reason in Arabic. Jobs that fail to score are retried on the next run. |
-| | **Route** | Strong matches go to a "needs manual application" list, with the apply link or the email address to send your CV to. Optional email auto-apply is built in but off by default. |
+| | **Route** | Strong matches go to a "needs manual application" list, with the apply link or the email address to send your CV to. Email auto-apply is off by default and not complete yet (see [Auto-apply](#auto-apply-not-working-yet)). |
 | 09:00 | **Analyse** | Shows the most requested skills across the last 30 days and the average advertised salary. The average is grouped by currency and period and lists its sources. If fewer than 5 postings mention a salary, the report says the data is insufficient instead of guessing. |
 | | **News** | Top Egypt tech / job-market headlines from the last 72 hours (Arabic + English), deduplicated. |
-| | **Report** | Sends an approved WhatsApp template with the summary, then the full details as a follow-up message whenever the 24-hour chat window is open. |
+| | **Report** | Sends an approved WhatsApp template with the summary, then the full details as a follow-up message whenever the 24-hour chat window is open. On a busy day the job lists in the details are shortened (ending with `…`) so the message stays under WhatsApp's 4,096-character limit. |
 | anytime | **Errors** | Every run and failure is logged to a `jh_runs` table, and failures trigger a WhatsApp alert. |
 
 ## Stack
@@ -37,7 +37,10 @@ An n8n workflow that searches for entry-level tech jobs every morning, scores ea
 6. **Test:** run the *Test Search* trigger and check `jh_jobs` for scores. Then run the *Daily 9 AM Report* trigger and check WhatsApp.
 7. **Publish** the workflow. It runs daily as long as your n8n instance is online.
 
-> Email (Outlook) nodes for auto-apply and reply tracking are included but disabled. Enable them only after connecting a Microsoft OAuth2 credential and setting `auto_apply_enabled = true` and `cv_pdf_url`.
+### Auto-apply (not working yet)
+Keep `auto_apply_enabled = false`. The export is missing the Outlook node that sends the application email (**Create Application Email**). The auto-apply branch goes *Write Cover Letter → Download CV PDF → Mark Email Sent*, and **Mark Email Sent** reads that node, so a run with auto-apply on stops there with an error, and no email is sent. With auto-apply off, strong matches go to the "needs manual application" list with the email address to send your CV to, and the rest of the workflow is unaffected.
+
+To finish it: add a Microsoft Outlook node named **Create Application Email** between **Download CV PDF** and **Mark Email Sent** that sends the cover letter with the CV attached, connect a Microsoft OAuth2 credential, then set `auto_apply_enabled = true` and `cv_pdf_url`. **Check Outlook Replies** (reply tracking) and **Email Error Alert** are in the export but disabled; enable them with the same credential.
 
 ## Customize the scoring
 The **Score Job Match** node's prompt describes the candidate's level ("university student (penultimate year) seeking internship / entry-level / junior / graduate roles"). Edit that line if it doesn't describe you; everything else comes from `cv_text` and the other `jh_settings` columns.
@@ -46,7 +49,10 @@ The **Score Job Match** node's prompt describes the candidate's level ("universi
 ```bash
 node --test tests/*.test.mjs   # Node.js 21 or newer
 ```
-The tests check that every connection in the workflow points to a real node, that the export has no credential IDs or hard-coded emails/phone numbers, that every setting the workflow reads is in `jh_settings.csv`, and that every column it writes is documented in `data-tables/schema.md`. Run them after re-exporting the workflow. GitHub Actions runs them on every pull request.
+- `tests/workflow.test.mjs` checks that every connection and every `$('Node')` reference points to a real node, that the export has no credential IDs or hard-coded emails/phone numbers, that every setting the workflow reads is in `jh_settings.csv`, and that every column it writes is documented in `data-tables/schema.md`.
+- `tests/code-nodes.test.mjs` runs the Code nodes from the export with sample jobs: filtering by title, level, location and age, de-duplication, salary and apply-email parsing, the scoring queue, the manual/auto-apply routing and its daily cap, the report's salary and skills rules, the WhatsApp length limits, and reply matching.
+
+Run them after re-exporting the workflow. GitHub Actions runs them on every pull request and push to `main`.
 
 ## Design principles
 - **No invented experience.** Scoring and cover letters are grounded strictly in the CV text.
@@ -71,6 +77,8 @@ Workflow على n8n بيدوّر كل يوم الصبح على وظائف تقن
   - يجمع أهم أخبار سوق العمل والتقنية في مصر خلال آخر 72 ساعة.
   - يبعت التقرير على واتساب بقالب معتمد.
 - **أي وقت**: أي خطأ بيتسجل، ويوصلك تنبيه بيه على واتساب.
+
+**التقديم التلقائي:** لسه مش مكتمل، لأن عقدة إرسال إيميل التقديم مش موجودة في الملف. سيب `auto_apply_enabled = false`، والوظايف القوية هتظهر في قايمة "محتاجة تقديم يدوي" ومعاها الإيميل اللي تبعتله الـCV.
 
 **التشغيل:** اتبع خطوات Setup اللي فوق: استورد الملف، واعمل الجداول، واربط Gemini وواتساب، واعمل القالب، وجرّب، وبعدين انشر.
 

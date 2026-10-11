@@ -70,3 +70,18 @@ test('every column the workflow writes is documented in schema.md', () => {
     }
   }
 });
+
+test("every $('Node') reference points at a node in the export", () => {
+  const names = new Set(workflow.nodes.map((n) => n.name));
+  // The Outlook node that sends application emails is not in this export (see
+  // the README, "Auto-apply"). Remove it from this list once it is added back.
+  const knownMissing = new Set(['Create Application Email']);
+  const referenced = new Set([...raw.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]));
+  for (const name of referenced) {
+    if (knownMissing.has(name)) {
+      assert.ok(!names.has(name), `${name} is back in the export: remove it from knownMissing`);
+      continue;
+    }
+    assert.ok(names.has(name), `the workflow reads $('${name}'), which isn't a node`);
+  }
+});
