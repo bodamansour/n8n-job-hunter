@@ -897,8 +897,8 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        4256,
-        688
+        4480,
+        560
       ]
     },
     {
@@ -1784,6 +1784,147 @@
         }
       },
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "=Application: {{ $('Loop Jobs').item.json.title }} – {{ $('Load Settings').first().json.applicant_name }}",
+        "bodyContent": "={{ $('Write Cover Letter').item.json.text }}",
+        "additionalFields": {
+          "toRecipients": "={{ $('Loop Jobs').item.json.apply_email }}",
+          "bodyContentType": "Text",
+          "attachments": {
+            "attachments": [
+              {
+                "binaryPropertyName": "data"
+              }
+            ]
+          }
+        }
+      },
+      "id": "8711fb31-dbc9-4a8c-88a7-b6a4337270e3",
+      "name": "Create Application Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        560
+      ],
+      "disabled": true,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "send",
+        "draftId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        }
+      },
+      "id": "1377bb8e-58b8-49d7-a29d-73816f7f0c3e",
+      "name": "Send Application Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        4032,
+        560
+      ],
+      "disabled": true,
+      "onError": "continueErrorOutput",
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "name": "Microsoft Outlook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2a8a565a-176f-4045-8144-35e4c710c92a",
+              "leftValue": "={{ $json.success === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2c2733a-dad0-476c-82f7-4077cfe9ce70",
+      "name": "Email Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4256,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6a7ca0b5-ef59-464f-be57-91df75e948e8",
+              "name": "row_id",
+              "value": "={{ $('Loop Jobs').item.json.row_id }}",
+              "type": "number"
+            },
+            {
+              "id": "7405dd76-5811-40c2-9307-c905bccfa9d5",
+              "name": "status",
+              "value": "needs_manual",
+              "type": "string"
+            },
+            {
+              "id": "3e6fd2d0-c80f-4a46-bfec-f257fcc1b4e6",
+              "name": "status_note",
+              "value": "={{ 'التقديم التلقائي ما اكتملش، ابعت الـCV بنفسك على ' + $('Loop Jobs').item.json.apply_email }}",
+              "type": "string"
+            },
+            {
+              "id": "cd95bdeb-2cb7-49d5-9d44-cd9872506a72",
+              "name": "score",
+              "value": "={{ $('Loop Jobs').item.json.score }}",
+              "type": "number"
+            },
+            {
+              "id": "6a291017-f6dd-4c0d-8183-d3eb0fa5862a",
+              "name": "reason",
+              "value": "={{ $('Loop Jobs').item.json.reason }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a76010bf-14e6-459e-ac02-6ba0dc46877b",
+      "name": "Fall Back To Manual",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4032,
+        864
+      ]
     }
   ],
   "connections": {
@@ -2051,12 +2192,18 @@
       "main": [
         [
           {
-            "node": "Mark Email Sent",
+            "node": "Create Application Email",
             "type": "main",
             "index": 0
           }
         ],
-        []
+        [
+          {
+            "node": "Fall Back To Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Mark Email Sent": {
@@ -2279,6 +2426,71 @@
         [
           {
             "node": "Send WhatsApp Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Application Email": {
+      "main": [
+        [
+          {
+            "node": "Send Application Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fall Back To Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Application Email": {
+      "main": [
+        [
+          {
+            "node": "Email Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fall Back To Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Sent?": {
+      "main": [
+        [
+          {
+            "node": "Mark Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fall Back To Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fall Back To Manual": {
+      "main": [
+        [
+          {
+            "node": "Save Score & Status",
             "type": "main",
             "index": 0
           }
