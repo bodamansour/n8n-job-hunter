@@ -30,12 +30,23 @@ An n8n workflow that searches for entry-level tech jobs every morning, scores ea
 3. **Add credentials** in n8n:
    - **Google Gemini (PaLM) API** key from [Google AI Studio](https://aistudio.google.com/apikey).
    - **WhatsApp API**, using a permanent System User token and your WhatsApp Business Account ID. See [`docs/whatsapp-template.md`](docs/whatsapp-template.md).
+
+   The export contains only credential *names*, never keys, so after importing, open each Gemini and WhatsApp node and pick your credential.
 4. **Create and approve** the `daily_job_report` template ([`docs/whatsapp-template.md`](docs/whatsapp-template.md)), and put your Phone Number ID in `wa_phone_number_id`.
 5. Open *Workflow settings → Error workflow* and select **this same workflow**.
 6. **Test:** run the *Test Search* trigger and check `jh_jobs` for scores. Then run the *Daily 9 AM Report* trigger and check WhatsApp.
 7. **Publish** the workflow. It runs daily as long as your n8n instance is online.
 
 > Email (Outlook) nodes for auto-apply and reply tracking are included but disabled. Enable them only after connecting a Microsoft OAuth2 credential and setting `auto_apply_enabled = true` and `cv_pdf_url`.
+
+## Customize the scoring
+The **Score Job Match** node's prompt describes the candidate's level ("university student (penultimate year) seeking internship / entry-level / junior / graduate roles"). Edit that line if it doesn't describe you; everything else comes from `cv_text` and the other `jh_settings` columns.
+
+## Check the files
+```bash
+node --test tests/*.test.mjs   # Node.js 21 or newer
+```
+The tests check that every connection in the workflow points to a real node, that the export has no credential IDs or hard-coded emails/phone numbers, that every setting the workflow reads is in `jh_settings.csv`, and that every column it writes is documented in `data-tables/schema.md`. Run them after re-exporting the workflow. GitHub Actions runs them on every pull request.
 
 ## Design principles
 - **No invented experience.** Scoring and cover letters are grounded strictly in the CV text.
