@@ -1649,53 +1649,6 @@
     },
     {
       "parameters": {
-        "content": "## 1) بحث وتقييم وتقديم — 8 الصبح\nالمصادر: Remotive / RemoteOK / Arbeitnow / WeWorkRemotely + صفحات شركات وRSS من jh_settings.\nالتقديم التلقائي بس لو: الدرجة ≥ الحد، المستوى مناسب، فيه إيميل تقديم في الإعلان، auto_apply_enabled = true، وفيه cv_pdf_url، والحد اليومي مخلصش.\n⚠️ سيب فرعي (Company boards / Custom RSS) فوق عقدة Normalize عشان يشتغلوا قبلها.",
-        "height": 220,
-        "width": 1100,
-        "color": 4
-      },
-      "id": "e0e3c931-1ec6-447b-89e1-e1641c830b3e",
-      "name": "Note Search",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        0,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 2) التقرير اليومي — 9 الصبح\nقالب واتساب: daily_job_report · Arabic · Utility · 7 متغيرات:\nتقرير الوظائف {{1}}\n🆕 وظائف مناسبة: {{2}}\n✅ تم التقديم: {{3}}\n✋ تحتاج تدخلك: {{4}}\n📊 المهارات الأكثر طلبًا: {{5}}\n💰 الرواتب: {{6}}\n📰 الأخبار: {{7}}\nالتفاصيل والروابط كاملة على إيميلك.\n\n«تم التقديم» بيتسجل بس لما يوصل رد فعلي من الجهة في نفس محادثة Outlook.",
-        "height": 300,
-        "width": 1100,
-        "color": 6
-      },
-      "id": "cc73d64f-3c4e-41ab-a4fb-35e9a3e279a3",
-      "name": "Note Report",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        0,
-        1008
-      ]
-    },
-    {
-      "parameters": {
-        "content": "## 3) معالجة الأخطاء\nمن Workflow Settings ← Error Workflow اختار نفس الـWorkflow ده. أي خطأ بيتسجل في jh_runs ويوصلك إيميل.",
-        "width": 800,
-        "color": 3
-      },
-      "id": "53a09145-ff8b-48a8-a690-7131323ca925",
-      "name": "Note Error",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        0,
-        2112
-      ]
-    },
-    {
-      "parameters": {
         "operation": "get",
         "dataTableId": {
           "__rl": true,
