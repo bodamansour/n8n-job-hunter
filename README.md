@@ -25,6 +25,8 @@ An n8n workflow that searches for entry-level tech jobs every morning, scores ea
 - **Public job APIs and RSS**, plus Google News RSS.
 
 ## Setup
+> **Note:** the workflow export, `workflow/job-hunter-all-in-one.json`, is not in this repository yet. Until it is added, step 1 can't be followed; the data-table schema, settings template and WhatsApp template below are ready to use.
+
 1. **Import** `workflow/job-hunter-all-in-one.json` into n8n (*Workflows → Import from File*).
 2. **Create the three data tables** described in [`data-tables/schema.md`](data-tables/schema.md). Add one row to `jh_settings` using [`data-tables/jh_settings.csv`](data-tables/jh_settings.csv) as a template, and paste your CV text into `cv_text`.
 3. **Add credentials** in n8n:
@@ -60,6 +62,8 @@ Workflow على n8n بيدوّر كل يوم الصبح على وظائف تقن
   - يجمع أهم أخبار سوق العمل والتقنية في مصر خلال آخر 72 ساعة.
   - يبعت التقرير على واتساب بقالب معتمد.
 - **أي وقت**: أي خطأ بيتسجل، ويوصلك تنبيه بيه على واتساب.
+
+**ملحوظة:** ملف الـworkflow نفسه (`workflow/job-hunter-all-in-one.json`) لسه مش مرفوع على الريبو. لحد ما يترفع، الموجود هنا هو شكل الجداول وقالب الإعدادات وقالب رسالة واتساب.
 
 **التشغيل:** اتبع خطوات Setup اللي فوق: استورد الملف، واعمل الجداول، واربط Gemini وواتساب، واعمل القالب، وجرّب، وبعدين انشر.
 
