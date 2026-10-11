@@ -73,15 +73,67 @@ test('every column the workflow writes is documented in schema.md', () => {
 
 test("every $('Node') reference points at a node in the export", () => {
   const names = new Set(workflow.nodes.map((n) => n.name));
-  // The Outlook node that sends application emails is not in this export (see
-  // the README, "Auto-apply"). Remove it from this list once it is added back.
-  const knownMissing = new Set(['Create Application Email']);
   const referenced = new Set([...raw.matchAll(/\$\('([^']+)'\)/g)].map((m) => m[1]));
   for (const name of referenced) {
-    if (knownMissing.has(name)) {
-      assert.ok(!names.has(name), `${name} is back in the export: remove it from knownMissing`);
-      continue;
-    }
     assert.ok(names.has(name), `the workflow reads $('${name}'), which isn't a node`);
+  }
+});
+
+/** Target node names of one output (0 = main/true, 1 = false/error) of a node. */
+const targets = (name, output = 0) =>
+  (workflow.connections[name]?.main?.[output] || []).map((c) => c.node);
+
+test('auto-apply sends the cover letter with the CV, and only then marks the job as sent', () => {
+  assert.deepEqual(targets('Write Cover Letter'), ['Download CV PDF']);
+  assert.deepEqual(targets('Download CV PDF'), ['Create Application Email']);
+  assert.deepEqual(targets('Create Application Email'), ['Send Application Email']);
+  assert.deepEqual(targets('Send Application Email'), ['Email Sent?']);
+  assert.deepEqual(targets('Email Sent?', 0), ['Mark Email Sent']);
+  assert.deepEqual(targets('Mark Email Sent'), ['Loop Jobs']);
+
+  const draft = workflow.nodes.find((n) => n.name === 'Create Application Email');
+  assert.equal(draft.type, 'n8n-nodes-base.microsoftOutlook');
+  assert.equal(draft.parameters.resource, 'draft');
+  assert.equal(draft.parameters.operation, 'create');
+  assert.match(draft.parameters.bodyContent, /\$\('Write Cover Letter'\)\.item\.json\.text/);
+  assert.match(draft.parameters.additionalFields.toRecipients, /\$\('Loop Jobs'\)\.item\.json\.apply_email/);
+  assert.deepEqual(draft.parameters.additionalFields.attachments, { attachments: [{ binaryPropertyName: 'data' }] });
+
+  const send = workflow.nodes.find((n) => n.name === 'Send Application Email');
+  assert.equal(send.parameters.resource, 'draft');
+  assert.equal(send.parameters.operation, 'send');
+  assert.equal(send.parameters.draftId.value, '={{ $json.id }}');
+
+  // Mark Email Sent stores the conversation ID that Check Outlook Replies matches on.
+  const mark = workflow.nodes.find((n) => n.name === 'Mark Email Sent');
+  assert.match(mark.parameters.columns.value.gmail_thread_id, /\$\('Create Application Email'\)\.item\.json\.conversationId/);
+  const check = workflow.nodes.find((n) => n.name === 'Email Sent?');
+  assert.equal(check.parameters.conditions.conditions[0].leftValue, '={{ $json.success === true }}');
+});
+
+test('if any auto-apply step fails, the job falls back to the manual list and the loop goes on', () => {
+  for (const name of ['Download CV PDF', 'Create Application Email', 'Send Application Email']) {
+    const n = workflow.nodes.find((x) => x.name === name);
+    assert.equal(n.onError, 'continueErrorOutput', `${name} must keep going on error`);
+    assert.deepEqual(targets(name, 1), ['Fall Back To Manual'], `${name} error output`);
+  }
+  assert.deepEqual(targets('Email Sent?', 1), ['Fall Back To Manual']);
+  assert.deepEqual(targets('Fall Back To Manual'), ['Save Score & Status']);
+  assert.deepEqual(targets('Save Score & Status'), ['Loop Jobs']);
+
+  const values = Object.fromEntries(
+    workflow.nodes.find((n) => n.name === 'Fall Back To Manual').parameters.assignments.assignments
+      .map((a) => [a.name, a.value])
+  );
+  assert.equal(values.status, 'needs_manual');
+  for (const field of ['row_id', 'score', 'reason']) {
+    assert.match(values[field], new RegExp(`\\$\\('Loop Jobs'\\)\\.item\\.json\\.${field}`), field);
+  }
+});
+
+test('the Outlook nodes stay disabled until a Microsoft credential is connected', () => {
+  for (const node of workflow.nodes.filter((n) => n.type === 'n8n-nodes-base.microsoftOutlook')) {
+    assert.equal(node.disabled, true, `${node.name} should be disabled in the export`);
+    assert.deepEqual(Object.keys(node.credentials || {}), ['microsoftOutlookOAuth2Api'], node.name);
   }
 });
